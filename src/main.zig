@@ -7,16 +7,8 @@ const rz = @import("raylib_render_clay.zig");
 const WINDOW_WIDTH = 1080;
 const WINDOW_HEIGHT = 720;
 
-const LutData = struct {
-	rk: usize,
-	nk: usize,
-	pr_rk: f64,
-	freq: f64,
-	eq: f64,
-};
-
-var image : ?rl.Texture = null;
-var color_levels = 10;
+var image_og : ?rl.Texture = null;
+var image_copy : ?rl.Texture = null;
 
 pub fn main() !void
 {
@@ -25,7 +17,14 @@ pub fn main() !void
 
 	rl.setConfigFlags(.{ .window_resizable = true});
 	rl.initWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Equalização do histograma");
-	defer rl.closeWindow();
+	defer {
+		if (image_og) |tx|
+		{
+			rl.unloadTexture(tx);
+			rl.unloadTexture(image_copy.?);
+		}
+		rl.closeWindow();
+	}
 
 	const min_memory_size: u32 = zc.minMemorySize();
 	const memory = try allocator.alloc(u8, min_memory_size);
@@ -43,12 +42,43 @@ pub fn main() !void
 
 		if (rl.isFileDropped())
 		{
-			if (image) |tx	|
+			if (image_og) |tx	|
 			{
 				rl.unloadTexture(tx);
 			}
 			const paths = rl.loadDroppedFiles();
-			image = try rl.loadTexture(std.mem.span(paths.paths[0]));
+			image_og = try rl.loadTexture(std.mem.span(paths.paths[0]));
+			//image_copy = try rl.loadTexture(std.mem.span(paths.paths[0]));
+
+			const img_width : usize = @intCast(image_og.?.width);
+			const img_height : usize = @intCast(image_og.?.height);
+			var intermediate = try rl.loadImage(std.mem.span(paths.paths[0]));
+			var colors = try rl.loadImageColors(intermediate);
+
+			for (0..img_width) |i|
+			{
+				for (0..img_height) |j|
+				{
+					const is_white  = (@as(usize, @intCast(colors[j * img_width + i].r))
+						+ @as(usize, @intCast(colors[j * img_width + i].r))
+						+ @as(usize, @intCast(colors[j * img_width + i].r))
+						+ @as(usize, @intCast(colors[j * img_width + i].r))) / 4 > 127;
+					if (is_white)
+					{
+						colors[j * img_width + i] = .white;
+					}
+					else
+					{
+						colors[j * img_width + i] = .black;
+					}
+				}
+			}
+			intermediate.data = colors.ptr;
+			intermediate.format = .uncompressed_r8g8b8a8;
+
+			image_copy = try rl.loadTextureFromImage(intermediate);
+			
+			rl.unloadImageColors(colors);
 			rl.unloadDroppedFiles(paths);
 		}
 
@@ -67,40 +97,69 @@ pub fn main() !void
 			},
 			.background_color = rz.raylibColorToClayColor(.white),
 		})({
-			zc.UI()(.{
-				.id = .ID("SideBar"),
-				.layout = .{
-					.direction = .top_to_bottom,
-					.sizing = .{ .h = .grow, .w = .fixed(300) },
-					.padding = .all(16),
-					.child_alignment = .{ .x = .center, .y = .top },
-					.child_gap = 16,
-				},
-				.image = .{ .image_data = &image, .source_dimensions = .{ .w = 100, .h = 100 } },
-				.background_color = rz.raylibColorToClayColor(.gray),
-			})({
+			if (image_og) |_|
+			{
 				zc.UI()(.{
-					.id = .ID("ProfilePictureOuter"),
-					.layout = .{ .sizing = .{ .w = .grow }, .padding = .all(16),
-					.child_alignment = .{ .x = .left, .y = .center },
-					.child_gap = 16 },
-					.background_color = rz.raylibColorToClayColor(.red),
-				})({
-					zc.UI()(.{
-						.id = .ID("ProfilePicture"),
-						.layout = .{ .sizing = .{ .h = .fixed(60), .w = .fixed(60) } },
-					})({});
-					zc.text("Clay - UI Library", .{ .font_size = 24, .color = rz.raylibColorToClayColor(.gray)});
-				});
-			});
-
-			zc.UI()(.{
-				.id = .ID("MainContent"),
-				.layout = .{ .sizing = .grow },
-				.background_color = rz.raylibColorToClayColor(.gray),
-			})({
-				//...
-			});
+					.id = .ID("Original"),
+					.layout = .{
+						.direction = .top_to_bottom,
+						.sizing = .{ .w = .percent(0.5), .h = .grow },
+						.padding = .all(16),
+						.child_alignment = .{ .x = .center, .y = .top },
+					},
+					.scroll = .{ .horizontal = true, .vertical = true},
+					.image = .{
+						.image_data = &image_og,
+						.source_dimensions = .{
+							.w = @floatFromInt(image_og.?.width),
+							.h = @floatFromInt(image_og.?.height)
+						}
+					},
+				})({});
+				zc.UI()(.{
+					.id = .ID("Copy"),
+					.layout = .{
+						.direction = .top_to_bottom,
+						.sizing = .{ .w = .percent(0.5), .h = .grow },
+						.padding = .all(16),
+						.child_alignment = .{ .x = .center, .y = .top },
+					},
+					.image = .{
+						.image_data = &image_copy,
+						.source_dimensions = .{
+							.w = @floatFromInt(image_og.?.width),
+							.h = @floatFromInt(image_og.?.height)
+						}
+					},
+					.scroll = .{ .horizontal = true, .vertical = true},
+				})({});
+			}
+			else
+			{
+				zc.UI()(.{
+					.id = .ID("Original"),
+					.layout = .{
+						.direction = .top_to_bottom,
+						.sizing = .{ .h = .percent(0.5), .w = .percent(0.5) },
+						.padding = .all(16),
+						.child_alignment = .{ .x = .center, .y = .top },
+						.child_gap = 16,
+					},
+					.scroll = .{ .horizontal = true, .vertical = true},
+					.background_color = rz.raylibColorToClayColor(.black),
+				})({});
+				zc.UI()(.{
+					.id = .ID("Copy"),
+					.layout = .{
+						.direction = .top_to_bottom,
+						.sizing = .{ .w = .percent(0.5), .h = .grow },
+						.padding = .all(16),
+						.child_alignment = .{ .x = .center, .y = .top },
+					},
+					.scroll = .{ .horizontal = true, .vertical = true},
+					.background_color = rz.raylibColorToClayColor(.blue),
+				})({});
+			}
 		});
     	var cmds = zc.endLayout();
 		try rz.clayRaylibRender(&cmds, allocator);
