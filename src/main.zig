@@ -15,6 +15,7 @@ const LutData = struct {
 	eq: f64,
 };
 
+var image : ?rl.Texture = null;
 var color_levels = 10;
 
 pub fn main() !void
@@ -22,6 +23,7 @@ pub fn main() !void
 	var gpa = std.heap.DebugAllocator(.{}).init;
 	var allocator = gpa.allocator();
 
+	rl.setConfigFlags(.{ .window_resizable = true});
 	rl.initWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Equalização do histograma");
 	defer rl.closeWindow();
 
@@ -29,11 +31,27 @@ pub fn main() !void
 	const memory = try allocator.alloc(u8, min_memory_size);
 	defer allocator.free(memory);
 	const arena: zc.Arena = zc.createArenaWithCapacityAndMemory(memory);
-	_ = zc.initialize(arena, .{ .h = 1000, .w = 1000 }, .{});
+	_ = zc.initialize(arena, .{ .w = WINDOW_WIDTH, .h = WINDOW_HEIGHT }, .{});
 	zc.setMeasureTextFunction(void, {}, rz.measureText);
 
 	while (!rl.windowShouldClose())
 	{
+		zc.setLayoutDimensions(.{ .w = @floatFromInt(rl.getScreenWidth()), .h = @floatFromInt(rl.getScreenHeight())});
+		zc.setPointerState(.{ .x = rl.getMousePosition().x, .y = rl.getMousePosition().y}, rl.isMouseButtonDown(.left));
+		zc.updateScrollContainers(true, .{ .x = rl.getMousePosition().x,
+			.y = rl.getMousePosition().y}, rl.getFrameTime());
+
+		if (rl.isFileDropped())
+		{
+			if (image) |tx	|
+			{
+				rl.unloadTexture(tx);
+			}
+			const paths = rl.loadDroppedFiles();
+			image = try rl.loadTexture(std.mem.span(paths.paths[0]));
+			rl.unloadDroppedFiles(paths);
+		}
+
 		rl.beginDrawing();
 		defer rl.endDrawing();
 
@@ -42,7 +60,11 @@ pub fn main() !void
 		zc.beginLayout();
 		zc.UI()(.{
 			.id = .ID("OuterContainer"),
-			.layout = .{ .direction = .left_to_right, .sizing = .grow, .padding = .all(16), .child_gap = 16 },
+			.layout = .{
+				.direction = .left_to_right,
+				.sizing = .grow,
+				.padding = .all(16),
+			},
 			.background_color = rz.raylibColorToClayColor(.white),
 		})({
 			zc.UI()(.{
@@ -54,6 +76,7 @@ pub fn main() !void
 					.child_alignment = .{ .x = .center, .y = .top },
 					.child_gap = 16,
 				},
+				.image = .{ .image_data = &image, .source_dimensions = .{ .w = 100, .h = 100 } },
 				.background_color = rz.raylibColorToClayColor(.gray),
 			})({
 				zc.UI()(.{
