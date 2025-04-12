@@ -10,6 +10,10 @@ const WINDOW_HEIGHT = 720;
 var image_og : ?rl.Texture = null;
 var image_copy : ?rl.Texture = null;
 
+fn isSameColor(color1 : rl.Color, color2 : rl.Color) bool {
+	return color1.r == color2.r and color1.g == color2.g and color1.b == color2.b and color1.a == color2.a;
+}
+
 pub fn main() !void
 {
 	var gpa = std.heap.DebugAllocator(.{}).init;
@@ -37,8 +41,8 @@ pub fn main() !void
 	{
 		zc.setLayoutDimensions(.{ .w = @floatFromInt(rl.getScreenWidth()), .h = @floatFromInt(rl.getScreenHeight())});
 		zc.setPointerState(.{ .x = rl.getMousePosition().x, .y = rl.getMousePosition().y}, rl.isMouseButtonDown(.left));
-		zc.updateScrollContainers(true, .{ .x = rl.getMousePosition().x,
-			.y = rl.getMousePosition().y}, rl.getFrameTime());
+		zc.updateScrollContainers(true, .{ .x = rl.getMouseWheelMoveV().x,
+			.y = rl.getMouseWheelMoveV().y}, rl.getFrameTime());
 
 		if (rl.isFileDropped())
 		{
@@ -48,7 +52,6 @@ pub fn main() !void
 			}
 			const paths = rl.loadDroppedFiles();
 			image_og = try rl.loadTexture(std.mem.span(paths.paths[0]));
-			//image_copy = try rl.loadTexture(std.mem.span(paths.paths[0]));
 
 			const img_width : usize = @intCast(image_og.?.width);
 			const img_height : usize = @intCast(image_og.?.height);
@@ -77,49 +80,83 @@ pub fn main() !void
 			{
 				for (0..img_height) |j|
 				{
-					if(colors[j * img_width + i].r == 0)
+					if(isSameColor(colors[j * img_width + i], .black))
 					{
 						continue;
 					}
 
 					if (i == 0 and j == 0) {
-						continue;
+						colors[j * img_width + i] = .{
+							.r = std.crypto.random.int(u8),
+							.g = std.crypto.random.int(u8),
+							.b = std.crypto.random.int(u8),
+							.a = std.crypto.random.int(u8)
+						};
 					}
 					else if (i == 0)
 					{
-						const left  = colors[j * img_width + i - img_width];
-						if (left.r != 0)
+						const above  = colors[j * img_width + i - img_width];
+						if (!isSameColor(above, .black))
 						{
-							colors[j * img_width + i] = left;
+							if (isSameColor(above, .white))
+							{
+								colors[j * img_width + i] = .{
+									.r = std.crypto.random.int(u8),
+									.g = std.crypto.random.int(u8),
+									.b = std.crypto.random.int(u8),
+									.a = std.crypto.random.int(u8)
+								};
+							}
+							else
+							{
+								colors[j * img_width + i] = above;
+							}
 						}
 					}
 					else if (j == 0)
 					{
-						const above  = colors[j * img_width + i - 1];
-						if (above.r != 0)
+						const left  = colors[j * img_width + i - 1];
+						if (!isSameColor(left, .black))
 						{
-							colors[j * img_width + i] = above;
+							if (isSameColor(left, .white))
+							{
+								colors[j * img_width + i] = .{
+									.r = std.crypto.random.int(u8),
+									.g = std.crypto.random.int(u8),
+									.b = std.crypto.random.int(u8),
+									.a = std.crypto.random.int(u8)
+								};
+							}
+							else
+							{
+								colors[j * img_width + i] = left;
+							}
 						}
 					}
 					else
 					{
-						const left  = colors[j * img_width + i - img_width];
-						const above  = colors[j * img_width + i - 1];
-						if(left.r != 0 and above.r != 0)
+						const left  = colors[j * img_width + i - 1];
+						const above  = colors[j * img_width + i - img_width];
+						if(!isSameColor(left, .black) and !isSameColor(above, .black))
 						{
 							colors[j * img_width + i] = above;
 						}
-						else if(left.r != 0)
+						else if(!isSameColor(left, .black))
 						{
 							colors[j * img_width + i] = left;
 						}
-						else if(above.r != 0)
+						else if(!isSameColor(above, .black))
 						{
 							colors[j * img_width + i] = above;
 						}
 						else
 						{
-							colors[j * img_width + i] = .{ .r = std.crypto.random.int(u8), .g = std.crypto.random.int(u8), .b = std.crypto.random.int(u8), .a = std.crypto.random.int(u8)};
+							colors[j * img_width + i] = .{
+								.r = std.crypto.random.int(u8),
+								.g = std.crypto.random.int(u8),
+								.b = std.crypto.random.int(u8),
+								.a = std.crypto.random.int(u8)
+							};
 						}
 					}
 				}
@@ -158,12 +195,12 @@ pub fn main() !void
 						.padding = .all(16),
 						.child_alignment = .{ .x = .center, .y = .top },
 					},
-					.scroll = .{ .horizontal = true, .vertical = true},
+					.scroll = .{.vertical = true},
 					.image = .{
 						.image_data = &image_og,
 						.source_dimensions = .{
 							.w = @floatFromInt(image_og.?.width),
-							.h = @floatFromInt(image_og.?.height)
+							.h = @floatFromInt(image_og.?.height),
 						}
 					},
 				})({});
@@ -179,10 +216,10 @@ pub fn main() !void
 						.image_data = &image_copy,
 						.source_dimensions = .{
 							.w = @floatFromInt(image_og.?.width),
-							.h = @floatFromInt(image_og.?.height)
+							.h = @floatFromInt(image_og.?.height),
 						}
 					},
-					.scroll = .{ .horizontal = true, .vertical = true},
+					.scroll = .{.vertical = true},
 				})({});
 			}
 			else
@@ -191,24 +228,22 @@ pub fn main() !void
 					.id = .ID("Original"),
 					.layout = .{
 						.direction = .top_to_bottom,
-						.sizing = .{ .h = .percent(0.5), .w = .percent(0.5) },
+						.sizing = .{ .h = .percent(1), .w = .percent(0.5) },
 						.padding = .all(16),
 						.child_alignment = .{ .x = .center, .y = .top },
 						.child_gap = 16,
 					},
 					.scroll = .{ .horizontal = true, .vertical = true},
-					.background_color = rz.raylibColorToClayColor(.black),
 				})({});
 				zc.UI()(.{
 					.id = .ID("Copy"),
 					.layout = .{
 						.direction = .top_to_bottom,
-						.sizing = .{ .w = .percent(0.5), .h = .grow },
+						.sizing = .{ .w = .percent(1), .h = .percent(0.5) },
 						.padding = .all(16),
 						.child_alignment = .{ .x = .center, .y = .top },
 					},
 					.scroll = .{ .horizontal = true, .vertical = true},
-					.background_color = rz.raylibColorToClayColor(.blue),
 				})({});
 			}
 		});
