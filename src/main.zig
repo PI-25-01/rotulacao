@@ -60,9 +60,9 @@ pub fn main() !void
 				for (0..img_height) |j|
 				{
 					const is_white  = (@as(usize, @intCast(colors[j * img_width + i].r))
-						+ @as(usize, @intCast(colors[j * img_width + i].r))
-						+ @as(usize, @intCast(colors[j * img_width + i].r))
-						+ @as(usize, @intCast(colors[j * img_width + i].r))) / 4 > 127;
+						+ @as(usize, @intCast(colors[j * img_width + i].g))
+						+ @as(usize, @intCast(colors[j * img_width + i].b))
+						+ @as(usize, @intCast(colors[j * img_width + i].a))) / 4 > 127;
 					if (is_white)
 					{
 						colors[j * img_width + i] = .white;
@@ -70,6 +70,57 @@ pub fn main() !void
 					else
 					{
 						colors[j * img_width + i] = .black;
+					}
+				}
+			}
+			for (0..img_width) |i|
+			{
+				for (0..img_height) |j|
+				{
+					if(colors[j * img_width + i].r == 0)
+					{
+						continue;
+					}
+
+					if (i == 0 and j == 0) {
+						continue;
+					}
+					else if (i == 0)
+					{
+						const left  = colors[j * img_width + i - img_width];
+						if (left.r != 0)
+						{
+							colors[j * img_width + i] = left;
+						}
+					}
+					else if (j == 0)
+					{
+						const above  = colors[j * img_width + i - 1];
+						if (above.r != 0)
+						{
+							colors[j * img_width + i] = above;
+						}
+					}
+					else
+					{
+						const left  = colors[j * img_width + i - img_width];
+						const above  = colors[j * img_width + i - 1];
+						if(left.r != 0 and above.r != 0)
+						{
+							colors[j * img_width + i] = above;
+						}
+						else if(left.r != 0)
+						{
+							colors[j * img_width + i] = left;
+						}
+						else if(above.r != 0)
+						{
+							colors[j * img_width + i] = above;
+						}
+						else
+						{
+							colors[j * img_width + i] = .{ .r = std.crypto.random.int(u8), .g = std.crypto.random.int(u8), .b = std.crypto.random.int(u8), .a = std.crypto.random.int(u8)};
+						}
 					}
 				}
 			}
