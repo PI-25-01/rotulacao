@@ -20,7 +20,7 @@ pub fn main() !void
 	var allocator = gpa.allocator();
 
 	rl.setConfigFlags(.{ .window_resizable = true});
-	rl.initWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Equalização do histograma");
+	rl.initWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Rotulação");
 	defer {
 		if (image_og) |tx|
 		{
